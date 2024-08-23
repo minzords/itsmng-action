@@ -1,0 +1,60 @@
+name: "Plugin Install Action"
+
+on:
+  workflow_call:
+    inputs:
+      plugin-key:
+        required: true
+        type: string
+
+jobs:
+    ci:
+        name: Install Plugin
+        runs-on: ubuntu-latest
+        container: 
+            image: ghcr.io/itsmng/itsm-ng:latest
+            env:
+                MARIADB_HOST: mariadb
+                MARIAD_USER: itsmng
+                MARIADB_PASSWORD: itsmng
+                MARIADB_DATABASE: itsmng
+
+        services:
+            mariadb:
+                image: docker.io/mariadb:latest
+                env:
+                    MYSQL_ROOT_PASSWORD: itsmng
+                    MYSQL_DATABASE: itsmng
+                    MYSQL_USER: itsmng
+                    MYSQL_PASSWORD: itsmng
+                ports:
+                    - 3306:3306
+                options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                path: "${{ inputs.plugin-key }}"
+
+            - name: "Install composer and nodejs"
+              run: |
+                apt update
+                apt install -y composer nodejs
+
+            - name: "Install dependencies"
+              run: |
+                if [[ -f "composer.json" ]]; then
+                    composer install --ansi --no-interaction --no-progress --prefer-dist
+                fi
+                if [[ -f "package.json" ]]; then
+                    npm install --no-save
+                fi
+            
+            - name: "Install Plugin"
+              working-directory: "/var/www/itsm"
+              run: |
+               bin/console database:install --ansi --no-interaction --db-name=itsmng --db-host=itsmng --db-user=itsmng
+               bin/console plugin:install --ansi --no-interaction --username=itsm ${{ inputs.plugin-key }}
+               bin/console plugin:activate --ansi --no-interaction ${{ inputs.plugin-key }}
+            
