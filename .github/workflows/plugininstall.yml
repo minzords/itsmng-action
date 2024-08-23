@@ -7,6 +7,11 @@ on:
         required: true
         type: string
 
+      repository:
+        required: false
+        type: string
+        default: "itsmng"
+
 jobs:
     ci:
         name: Install Plugin
@@ -29,13 +34,14 @@ jobs:
                     MYSQL_PASSWORD: itsmng
                 ports:
                     - 3306:3306
-                options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
-              with:
-                path: "${{ inputs.plugin-key }}"
+              working-directory: "/var/www/itsm-ng/plugins"
+              run: |
+                apt update
+                apt install -y git
+                git clone https://github.com/${{ inputs.repository }}/${{ inputs.plugin-key }}
 
             - name: "Install composer and nodejs"
               run: |
@@ -43,18 +49,19 @@ jobs:
                 apt install -y composer nodejs
 
             - name: "Install dependencies"
+              working-directory: "/var/www/itsm-ng"
               run: |
-                if [[ -f "composer.json" ]]; then
+                if [ -f "composer.json" ]; then
                     composer install --ansi --no-interaction --no-progress --prefer-dist
                 fi
-                if [[ -f "package.json" ]]; then
+                if [ -f "package.json" ]; then
                     npm install --no-save
                 fi
             
             - name: "Install Plugin"
-              working-directory: "/var/www/itsm"
+              working-directory: "/var/www/itsm-ng"
               run: |
-               bin/console database:install --ansi --no-interaction --db-name=itsmng --db-host=itsmng --db-user=itsmng
-               bin/console plugin:install --ansi --no-interaction --username=itsm ${{ inputs.plugin-key }}
-               bin/console plugin:activate --ansi --no-interaction ${{ inputs.plugin-key }}
+               bin/console itsmng:database:install --ansi --no-interaction --db-name=itsmng --db-host=mariadb --db-user=itsmng --db-password=itsmng
+               bin/console itsmng:plugin:install --ansi --no-interaction --username=itsm ${{ inputs.plugin-key }}
+               bin/console itsmng:plugin:activate --ansi --no-interaction ${{ inputs.plugin-key }}
             
